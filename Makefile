@@ -1,9 +1,6 @@
-.PHONY: all cluster consumer deps provision test
+.PHONY: all clean cluster consumer deps provision
 
 all: deps cluster
-
-test:
-	cd jepsen.consumer/ && lein run test
 
 cluster:
 	vagrant up
@@ -34,3 +31,6 @@ deps: deps/consul deps/nomad demo.consumer/target/demo.consumer-0.1.0-SNAPSHOT-s
 
 ensureif:
 	vboxmanage list hostonlyifs | egrep 'IP|Mask' | grep -v V6 | tr -s ' ' | cut -d ' ' -f2 |  xargs -n2 ipcalc -b | grep Network | tr -s ' ' | cut -d' ' -f2 | grep $$(vboxmanage list hostonlyifs | egrep 'Mask' | grep -v V6 | tr -s ' ' | cut -d ' ' -f2 |  xargs  ipcalc -b 172.28.128.11 | grep Network | tr -s ' ' | cut -d' ' -f2) || vboxmanage hostonlyif ipconfig $$(vboxmanage hostonlyif create | grep Interface | cut -d' ' -f2 | tr -d "'") --ip 172.28.128.1
+
+clean:
+	vagrant destroy -f

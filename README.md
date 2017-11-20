@@ -1,12 +1,10 @@
-# clusterstuff
+# nomad playground
 
-cluster experiments
+see what you can do with this toy
 
-`make ensureif cluster test` will bootstrap everything and do a test run
+`make ensureif cluster` will bootstrap everything
 
 `make` downloads dependencies, builds the demo consumer and `vagrant up`s
-
-`make test` to run the jepsen tests
 
 if you need reprovisioning of vms then `vagrant provision`
 

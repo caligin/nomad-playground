@@ -1,0 +1,107 @@
+---
+- hosts: all
+  remote_user: root
+  tasks:
+    - name: forgive me. also, TODO gradually disable it. for now the thing that complains for sure is haproxy, probs consul too. what about app? can go with infra only?
+      selinux: state=disabled
+      become: yes
+
+    - name: copy the consul binary
+      copy: src=deps/consul dest=/usr/bin/consul mode=755 owner=root group=root
+    - name: copy the consul systemd unit
+      copy: src=consul.service dest=/lib/systemd/system/ mode=644 owner=root group=root
+    - name: enable consul
+      service: name=consul enabled=yes
+    - name: ensure consul conf dir
+      file: src=/etc/consul.d state=directory mode=755 owner=root group=root
+    - user:
+        name: consul
+        group: consul
+        system: yes
+        shell: /usr/sbin/nologin
+
+    - name: "build hosts file"
+      lineinfile: dest=/etc/hosts regexp='.*{{ item }}$' line="{{ hostvars[item].ansible_default_ipv4.address }} {{ item }}" state=present
+      when: hostvars[item].ansible_default_ipv4.address is defined
+      with_items: groups['all']
+    - hostname:
+        name: "{{ item }}"
+      with_items: groups['all']
+
+  handlers:
+    - name: restart consul
+      service: name=consul state=restarted
+
+- hosts: apps
+  remote_user: root
+  tasks:
+    - name: copy the nomad binary
+      copy: src=deps/nomad dest=/usr/bin/nomad mode=755 owner=root group=root
+    - name: copy the nomad config
+      copy: src=nomad.hcl dest=/etc mode=644 owner=root group=root
+    - name: copy the nomad systemd unit
+      copy: src=nomad.service dest=/lib/systemd/system/ mode=644 owner=root group=root
+    - name: start and enable nomad
+      service: name=nomad state=started enabled=yes
+
+    - name: java8
+      yum:
+        name: java-1.8.0-openjdk-headless.x86_64
+        state: present
+
+- hosts: infra
+  remote_user: root
+  tasks:
+    - name: import rabbit and mongo signing keys
+      rpm_key:
+        key: "{{ item }}"
+      with_items:
+        - https://www.rabbitmq.com/rabbitmq-release-signing-key.asc
+        - file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+    - name: mongo repo
+      copy: src=mongodb-org-3.4.repo dest=/etc/yum.repos.d/ mode=644 owner=root group=root
+    - name: rabbit repo
+      copy: src=rabbit.repo dest=/etc/yum.repos.d/ mode=644 owner=root group=root
+    - name: install all the infra sofware
+      yum:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - rabbitmq-server
+        - mongodb-org
+        - haproxy
+
+    - name: set the erlang cookie
+      copy: src=erlang.cookie dest=/var/lib/rabbitmq/.erlang.cookie mode=400 owner=rabbitmq group=rabbitmq
+    - name: copy the rabbit config
+      copy: src=rabbitmq.config dest=/etc/rabbitmq/rabbitmq.config mode=644 owner=root group=root
+    - name: start and enable rabbit
+      service: name=rabbitmq-server state=started enabled=yes
+
+    - name: copy the mongo config
+      copy: src=mongod.conf dest=/etc/ mode=644 owner=root group=root
+    - name: start and enable mongo
+      service: name=mongod state=started enabled=yes
+
+    - name: copy the haproxy config
+      copy: src=haproxy.cfg dest=/etc/haproxy/haproxy.cfg mode=644 owner=root group=root
+    - name: start and enable haproxy
+      service: name=haproxy state=started enabled=yes
+
+    - name: copy the consul config
+      copy: src=consul.json dest=/etc/consul.d/conf.json mode=644 owner=root group=root
+      notify: restart consul
+
+- hosts: controller
+  remote_user: root
+  tasks:
+    - name: gocd repo
+      copy: src=gocd.repo dest=/etc/yum.repos.d/ mode=644 owner=root group=root
+    - name: install go and requirements
+      yum:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - java-1.8.0-openjdk
+        - go-server
+        - go-agent
