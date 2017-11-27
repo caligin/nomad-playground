@@ -1,10 +1,9 @@
 ---
 - hosts: all
-  remote_user: root
+  become: yes
   tasks:
     - name: forgive me. also, TODO gradually disable it. for now the thing that complains for sure is haproxy, probs consul too. what about app? can go with infra only?
       selinux: state=disabled
-      become: yes
 
     - name: copy the consul binary
       copy: src=deps/consul dest=/usr/bin/consul mode=755 owner=root group=root
@@ -13,7 +12,10 @@
     - name: enable consul
       service: name=consul enabled=yes
     - name: ensure consul conf dir
-      file: src=/etc/consul.d state=directory mode=755 owner=root group=root
+      file: path=/etc/consul.d state=directory mode=755 owner=root group=root
+    - group:
+        name: consul
+        state: present
     - user:
         name: consul
         group: consul
@@ -21,19 +23,14 @@
         shell: /usr/sbin/nologin
 
     - name: "build hosts file"
-      lineinfile: dest=/etc/hosts regexp='.*{{ item }}$' line="{{ hostvars[item].ansible_default_ipv4.address }} {{ item }}" state=present
-      when: hostvars[item].ansible_default_ipv4.address is defined
-      with_items: groups['all']
-    - hostname:
-        name: "{{ item }}"
-      with_items: groups['all']
-
-  handlers:
-    - name: restart consul
-      service: name=consul state=restarted
+      lineinfile: dest=/etc/hosts regexp='.*{{ item }}$' line="{{ hostvars[item].address }} {{ item }}" state=present
+      when: hostvars[item].address is defined
+      with_items: "{{ groups['all'] }}"
+    - name: sets hostname
+      command: hostnamectl set-hostname {{ ansible_host }}
 
 - hosts: apps
-  remote_user: root
+  become: yes
   tasks:
     - name: copy the nomad binary
       copy: src=deps/nomad dest=/usr/bin/nomad mode=755 owner=root group=root
@@ -50,14 +47,14 @@
         state: present
 
 - hosts: infra
-  remote_user: root
+  become: yes
   tasks:
     - name: import rabbit and mongo signing keys
       rpm_key:
         key: "{{ item }}"
       with_items:
         - https://www.rabbitmq.com/rabbitmq-release-signing-key.asc
-        - file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+        - /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
     - name: mongo repo
       copy: src=mongodb-org-3.4.repo dest=/etc/yum.repos.d/ mode=644 owner=root group=root
     - name: rabbit repo
@@ -92,8 +89,12 @@
       copy: src=consul.json dest=/etc/consul.d/conf.json mode=644 owner=root group=root
       notify: restart consul
 
+  handlers:
+    - name: restart consul
+      service: name=consul state=restarted
+
 - hosts: controller
-  remote_user: root
+  become: yes
   tasks:
     - name: gocd repo
       copy: src=gocd.repo dest=/etc/yum.repos.d/ mode=644 owner=root group=root
