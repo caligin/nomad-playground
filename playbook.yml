@@ -32,6 +32,10 @@
 - hosts: apps
   become: yes
   tasks:
+    - name: copy the consul config
+      copy: src=consul-agent.json dest=/etc/consul.d/conf.json mode=644 owner=root group=root
+      notify: restart consul
+
     - name: copy the nomad binary
       copy: src=deps/nomad dest=/usr/bin/nomad mode=755 owner=root group=root
     - name: copy the nomad config
@@ -45,6 +49,10 @@
       yum:
         name: java-1.8.0-openjdk-headless.x86_64
         state: present
+
+  handlers:
+    - name: restart consul
+      service: name=consul state=restarted
 
 - hosts: infra
   become: yes
@@ -86,7 +94,7 @@
       service: name=haproxy state=started enabled=yes
 
     - name: copy the consul config
-      copy: src=consul.json dest=/etc/consul.d/conf.json mode=644 owner=root group=root
+      copy: src=consul-server.json dest=/etc/consul.d/conf.json mode=644 owner=root group=root
       notify: restart consul
 
   handlers:
@@ -106,3 +114,42 @@
         - java-1.8.0-openjdk
         - go-server
         - go-agent
+    - name: enable and start go and agent
+      service: name={{ item }} state=started enabled=yes
+      with_items:
+        - go-server
+        - go-agent
+
+    - name: copy the lein installscript
+      copy: src=deps/lein dest=/usr/bin/lein mode=755 owner=root group=root
+
+    - name: git required for gitea
+      yum:
+        name: git
+        state: present
+    - group:
+        name: gitea
+        state: present
+    - user:
+        name: gitea
+        group: gitea
+        system: yes
+    - name: ensure gitea dirs
+      file: path={{ item }} state=directory mode=755 owner=gitea group=gitea
+      with_items:
+        - /etc/gitea
+        - /var/lib/gitea
+        - /var/lib/gitea/repositories
+        - /var/lib/gitea/lfs
+        - /var/log/gitea
+    - name: copy the gitea binary
+      copy: src=deps/gitea-1.3-linux-amd64 dest=/var/lib/gitea/gitea mode=755 owner=root group=root
+    - name: copy the gitea systemd unit
+      copy: src=gitea.service dest=/lib/systemd/system/ mode=644 owner=root group=root
+    - name: ensure gitea confdir
+      file: path=/etc/gitea state=directory mode=755 owner=root group=root
+    - name: copy the gitea config
+      copy: src=app.ini dest=/etc/gitea/app.ini mode=644 owner=root group=root
+    - name: enable and start gitea
+      service: name=gitea state=started enabled=yes
+

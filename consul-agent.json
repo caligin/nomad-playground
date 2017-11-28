@@ -1,0 +1,7 @@
+{
+  "server": false,
+  "data_dir": "/tmp/consuldata",
+  "bind_addr": "0.0.0.0",
+  "enable_syslog": true,
+  "retry_join": ["172.28.128.31","172.28.128.32","172.28.128.33"]
+}
