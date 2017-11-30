@@ -114,6 +114,8 @@
         - java-1.8.0-openjdk
         - go-server
         - go-agent
+    - name: provision pipeline config on go-server
+      copy: src=cruise-config.xml dest=/etc/go/ mode=664 owner=go group=go
     - name: enable and start go and agent
       service: name={{ item }} state=started enabled=yes
       with_items:
@@ -133,7 +135,6 @@
     - user:
         name: gitea
         group: gitea
-        system: yes
     - name: ensure gitea dirs
       file: path={{ item }} state=directory mode=755 owner=gitea group=gitea
       with_items:
@@ -153,3 +154,5 @@
     - name: enable and start gitea
       service: name=gitea state=started enabled=yes
 
+    - name: copy the nomad binary
+      copy: src=deps/nomad dest=/usr/bin/nomad mode=755 owner=root group=root

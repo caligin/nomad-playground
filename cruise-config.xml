@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<cruise xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="cruise-config.xsd" schemaVersion="97">
+  <pipelines group="defaultGroup">
+    <pipeline name="demo.service">
+      <materials>
+        <git url="http://172.28.128.41:3000/demo/demoservice.git" />
+      </materials>
+      <stage name="build">
+        <jobs>
+          <job name="build">
+            <tasks>
+              <exec command="lein">
+                <arg>uberjar</arg>
+              </exec>
+              <exec command="bash">
+                <arg>demo.service.nomad.tpl</arg>
+                <runif status="passed" />
+              </exec>
+            </tasks>
+            <artifacts>
+              <artifact src="target/demo.service.jar" />
+              <artifact src="demo.service.nomad" />
+            </artifacts>
+          </job>
+        </jobs>
+      </stage>
+      <stage name="run" fetchMaterials="false">
+        <jobs>
+          <job name="run">
+            <tasks>
+              <fetchartifact pipeline="" stage="build" job="build" srcfile="demo.service.nomad">
+                <runif status="passed" />
+              </fetchartifact>
+              <exec command="nomad">
+                <arg>run</arg>
+                <arg>-address=http://apps01:4646</arg>
+                <arg>demo.service.nomad</arg>
+                <runif status="passed" />
+              </exec>
+            </tasks>
+          </job>
+        </jobs>
+      </stage>
+    </pipeline>
+  </pipelines>
+</cruise>
