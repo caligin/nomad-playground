@@ -41,8 +41,8 @@ job "demo.service" {
         }
       }
       service {
-        name = "demoservice-check"
-        tags = ["global"]
+        name = "demoservice"
+        tags = ["global", "published"]
         port = "web"
         check {
           name     = "alive"

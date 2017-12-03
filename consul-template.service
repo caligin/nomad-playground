@@ -1,0 +1,23 @@
+[Unit]
+Description=consul-template
+After=consul.service
+Documentation=https://github.com/hashicorp/consul-template
+
+[Service]
+User=root
+Group=root
+Environment="OPTIONS=-config /etc/consul-template.d/consul-template.hcl"
+ExecStart=/usr/bin/consul-template $OPTIONS
+PermissionsStartOnly=true
+PIDFile=/var/run/consul-template.pid
+LimitFSIZE=infinity
+LimitCPU=infinity
+LimitAS=infinity
+LimitNOFILE=64000
+LimitNPROC=64000
+TasksMax=infinity
+TasksAccounting=false
+
+[Install]
+WantedBy=multi-user.target
+

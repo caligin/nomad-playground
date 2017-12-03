@@ -9,6 +9,7 @@
       copy: src=deps/consul dest=/usr/bin/consul mode=755 owner=root group=root
     - name: copy the consul systemd unit
       copy: src=consul.service dest=/lib/systemd/system/ mode=644 owner=root group=root
+      notify: reload units
     - name: enable consul
       service: name=consul enabled=yes
     - name: ensure consul conf dir
@@ -22,12 +23,19 @@
         system: yes
         shell: /usr/sbin/nologin
 
+    - name: copy the consul-template binary
+      copy: src=deps/consul-template dest=/usr/bin/consul-template mode=755 owner=root group=root
+
     - name: "build hosts file"
       lineinfile: dest=/etc/hosts regexp='.*{{ item }}$' line="{{ hostvars[item].address }} {{ item }}" state=present
       when: hostvars[item].address is defined
       with_items: "{{ groups['all'] }}"
     - name: sets hostname
       command: hostnamectl set-hostname {{ ansible_host }}
+
+  handlers:
+    - name: reload units
+      command: systemctl daemon-reload
 
 - hosts: apps
   become: yes
@@ -42,6 +50,7 @@
       copy: src=nomad.hcl dest=/etc mode=644 owner=root group=root
     - name: copy the nomad systemd unit
       copy: src=nomad.service dest=/lib/systemd/system/ mode=644 owner=root group=root
+      notify: reload units
     - name: start and enable nomad
       service: name=nomad state=started enabled=yes
 
@@ -53,6 +62,8 @@
   handlers:
     - name: restart consul
       service: name=consul state=restarted
+    - name: reload units
+      command: systemctl daemon-reload
 
 - hosts: infra
   become: yes
@@ -97,9 +108,27 @@
       copy: src=consul-server.json dest=/etc/consul.d/conf.json mode=644 owner=root group=root
       notify: restart consul
 
+    - name: copy the consul-template systemd unit
+      copy: src=consul-template.service dest=/lib/systemd/system/ mode=644 owner=root group=root
+      notify: reload units
+    - name: ensure consul-template conf dir
+      file: path=/etc/consul-template.d state=directory mode=755 owner=root group=root
+    - name: copy the consul-template config
+      copy: src=consul-template.hcl dest=/etc/consul-template.d/consul-template.hcl mode=644 owner=root group=root
+      notify: restart consul-template
+    - name: copy the consul-template template for haproxy
+      copy: src=haproxy-apps.tpl dest=/etc/consul-template.d/haproxy-apps.tpl mode=644 owner=root group=root
+      notify: restart consul-template
+    - name: start and enable consul-template
+      service: name=consul-template state=started enabled=yes
+
   handlers:
     - name: restart consul
       service: name=consul state=restarted
+    - name: restart consul-template
+      service: name=consul-template state=restarted
+    - name: reload units
+      command: systemctl daemon-reload
 
 - hosts: controller
   become: yes
@@ -147,6 +176,7 @@
       copy: src=deps/gitea-1.3-linux-amd64 dest=/var/lib/gitea/gitea mode=755 owner=root group=root
     - name: copy the gitea systemd unit
       copy: src=gitea.service dest=/lib/systemd/system/ mode=644 owner=root group=root
+      notify: reload units
     - name: ensure gitea confdir
       file: path=/etc/gitea state=directory mode=755 owner=root group=root
     - name: copy the gitea config
@@ -156,3 +186,7 @@
 
     - name: copy the nomad binary
       copy: src=deps/nomad dest=/usr/bin/nomad mode=755 owner=root group=root
+
+  handlers:
+    - name: reload units
+      command: systemctl daemon-reload
