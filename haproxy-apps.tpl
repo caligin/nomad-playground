@@ -29,8 +29,8 @@ defaults
     maxconn                 3000
 
 frontend  main *:80
-    {{range $tag, $services := services | byTag}}{{if eq $tag "published"}}{{range $service := $services}}{{range service $service.Name}}use_backend {{.Name}}
-    {{end}}{{end}}{{end}}{{end}}
+    {{range $tag, $services := services | byTag}}{{if eq $tag "published"}}{{range $service := $services}}use_backend {{.Name}} if { hdr_beg(host) -i {{.Name}}. }
+    {{end}}{{end}}{{end}}
     default_backend             empty
 
 backend empty
