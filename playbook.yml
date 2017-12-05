@@ -59,11 +59,24 @@
         name: java-1.8.0-openjdk-headless.x86_64
         state: present
 
+    - name: dnsmasq
+      yum:
+        name: dnsmasq
+        state: present
+    - name: tell NetworkManager to use the local dnsmasq
+      copy: src=dns.conf dest=/etc/NetworkManager/conf.d/dns.conf mode=644 owner=root group=root
+      notify: restart NetworkManager
+    - name: tell NetworkManager's dnsmasq to query local consul too
+      copy: src=consul-resolver dest=/etc/NetworkManager/dnsmasq.d/consul-resolver mode=644 owner=root group=root
+      notify: restart NetworkManager
+
   handlers:
     - name: restart consul
       service: name=consul state=restarted
     - name: reload units
       command: systemctl daemon-reload
+    - name: restart NetworkManager
+      service: name=NetworkManager state=restarted
 
 - hosts: infra
   become: yes
@@ -106,6 +119,9 @@
 
     - name: copy the consul config
       copy: src=consul-server.json dest=/etc/consul.d/conf.json mode=644 owner=root group=root
+      notify: restart consul
+    - name: copy the haproxy consul service definition
+      copy: src=haproxy.consul.service.json dest=/etc/consul.d/haproxy.consul.service.json mode=644 owner=root group=root
       notify: restart consul
 
     - name: copy the consul-template systemd unit

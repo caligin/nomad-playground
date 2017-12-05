@@ -31,6 +31,9 @@ Vagrant.configure("2") do |config|
   end
 
   config.vm.define "apps01" do |apps01|
+    apps01.vm.provider "virtualbox" do |v|
+      v.memory = 1024
+    end
     apps01.vm.network "private_network", ip: "172.28.128.21"
     apps01.vm.provision "shell", inline: "sed -i 's/0.0.0.0/172.28.128.21/g' /etc/consul.d/conf.json"
     apps01.vm.provision "shell", inline: "systemctl restart consul.service"
@@ -39,6 +42,9 @@ Vagrant.configure("2") do |config|
   end
 
   config.vm.define "apps02" do |apps02|
+    apps02.vm.provider "virtualbox" do |v|
+      v.memory = 1024
+    end
     apps02.vm.network "private_network", ip: "172.28.128.22"
     apps02.vm.provision "shell", inline: "sed -i 's/0.0.0.0/172.28.128.22/g' /etc/consul.d/conf.json"
     apps02.vm.provision "shell", inline: "systemctl restart consul.service"
@@ -47,6 +53,9 @@ Vagrant.configure("2") do |config|
   end
  
   config.vm.define "apps03" do |apps03|
+    apps03.vm.provider "virtualbox" do |v|
+      v.memory = 1024
+    end
     apps03.vm.network "private_network", ip: "172.28.128.23"
     apps03.vm.provision "shell", inline: "sed -i 's/0.0.0.0/172.28.128.23/g' /etc/consul.d/conf.json"
     apps03.vm.provision "shell", inline: "systemctl restart consul.service"

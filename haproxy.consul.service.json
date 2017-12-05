@@ -1,0 +1,14 @@
+{
+  "service": {
+    "name": "haproxy",
+    "tags": [],
+    "port": 80,
+    "check": {
+      "id": "haproxy",
+      "name": "TCP on port 80",
+      "tcp": "localhost:80",
+      "interval": "10s",
+      "timeout": "1s"
+    }
+  }
+}

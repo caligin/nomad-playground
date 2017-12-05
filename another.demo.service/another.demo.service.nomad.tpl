@@ -1,6 +1,6 @@
 #!/bin/bash
-cat > demo.service.nomad <<NOMAD
-job "demo.service" {
+cat > another.demo.service.nomad <<NOMAD
+job "another.demo.service" {
   datacenters = ["dc1"]
   type = "service"
   update {
@@ -11,7 +11,7 @@ job "demo.service" {
     canary = 0
   }
 
-  group "demo.service" {
+  group "another.demo.service" {
     count = 2
     restart {
       attempts = 10
@@ -20,14 +20,14 @@ job "demo.service" {
       mode = "delay"
     }
 
-    task "demo.service" {
+    task "another.demo.service" {
       driver = "java"
       artifact {
-        source = "http://172.28.128.41:8153/go/files/${GO_PIPELINE_NAME}/${GO_PIPELINE_COUNTER}/${GO_STAGE_NAME}/${GO_STAGE_COUNTER}/${GO_JOB_NAME}/demo.service.jar"
+        source = "http://172.28.128.41:8153/go/files/${GO_PIPELINE_NAME}/${GO_PIPELINE_COUNTER}/${GO_STAGE_NAME}/${GO_STAGE_COUNTER}/${GO_JOB_NAME}/another.demo.service.jar"
       }
 
       config {
-        jar_path    = "local/demo.service.jar"
+        jar_path    = "local/another.demo.service.jar"
         args = ["\${NOMAD_PORT_web}"]
       }
       resources {
@@ -39,7 +39,7 @@ job "demo.service" {
         }
       }
       service {
-        name = "demoservice"
+        name = "anotherdemoservice"
         tags = ["global", "published"]
         port = "web"
         check {

@@ -39,6 +39,6 @@ backend empty
 {{range $tag, $services := services | byTag}}{{if eq $tag "published"}}{{range $service := $services}}
 backend {{.Name}}
     balance     roundrobin
-    {{range service $service.Name}}server  {{.Name}}-{{.Node}} {{.NodeAddress}}:{{.Port}} check inter 1000
+    {{range service $service.Name}}server  {{.Name}}-{{.Node}} {{.Address}}:{{.Port}} check inter 1000
     {{end}}
 {{end}}{{end}}{{end}}
