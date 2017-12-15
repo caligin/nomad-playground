@@ -296,6 +296,10 @@
           --email {{ item }}@{{ item }}.com
           --config /etc/gitea/app.ini
       become_user: gitea
+      register: command_result
+      failed_when:
+        - command_result.rc == 1
+        - not command_result.stderr | search("user already exists")
       with_items:
         - demo
 
