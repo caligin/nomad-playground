@@ -7,6 +7,8 @@ Vagrant.configure("2") do |config|
   end
   
   addresses = {
+    "vault01" => "172.28.128.51",
+    "vault02" => "172.28.128.52",
     "apps01" => "172.28.128.21",
     "apps02" => "172.28.128.22",
     "apps03" => "172.28.128.23",
@@ -19,15 +21,25 @@ Vagrant.configure("2") do |config|
  config.vm.provision "ansible_local" do |ansible|
     ansible.playbook = "playbook.yml"
     ansible.groups = {
+      "vault" => ["vault0[1:2]"],
       "apps" => ["apps0[1:3]"],
       "infra" => ["infra0[1:3]"],
       "controller" => ["controller01"],
-      "all" => ["apps0[1:3]", "infra0[1:3]", "controller01"]
+      "infrapps" => ["apps0[1:3]", "infra0[1:3]"],
+      "all" => ["vault0[1:2]", "apps0[1:3]", "infra0[1:3]", "controller01"]
     }
     ansible.host_vars = {}
     addresses.each do | host, address |
       ansible.host_vars[host] = { "address" => address }
     end
+  end
+
+  config.vm.define "vault01" do |vault01|
+    vault01.vm.network "private_network", ip: "172.28.128.51"
+  end
+
+  config.vm.define "vault02" do |vault02|
+    vault02.vm.network "private_network", ip: "172.28.128.52"
   end
 
   config.vm.define "apps01" do |apps01|

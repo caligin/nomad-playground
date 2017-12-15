@@ -5,6 +5,102 @@
     - name: forgive me. also, TODO gradually disable it. for now the thing that complains for sure is haproxy, probs consul too. what about app? can go with infra only?
       selinux: state=disabled
 
+    - name: "build hosts file"
+      lineinfile: dest=/etc/hosts regexp='.*{{ item }}$' line="{{ hostvars[item].address }} {{ item }}" state=present
+      when: hostvars[item].address is defined
+      with_items: "{{ groups['all'] }}"
+    - name: sets hostname
+      command: hostnamectl set-hostname {{ ansible_host }}
+
+- hosts: vault
+  become: yes
+  tasks:
+    - group:
+        name: vault
+        state: present
+    - user:
+        name: vault
+        group: vault
+        system: yes
+        shell: /usr/sbin/nologin
+    - name: copy the vault binary
+      copy: src=deps/vault dest=/usr/bin/vault mode=755 owner=root group=root
+    - name: copy the vault systemd unit
+      copy: src=vault.service dest=/lib/systemd/system/ mode=644 owner=root group=root
+      notify: reload units
+    - name: ensure vault conf dir
+      file: path=/etc/vault.d state=directory mode=755 owner=root group=root
+    - name: copy vault config
+      copy: src=vault.hcl dest=/etc/vault.d/vault.hcl mode=444 owner=vault group=vault
+      notify: restart vault
+    - name: copy the vault tls cert
+      copy: src=deps/vault.crt dest=/etc/vault.d/vault.crt mode=444 owner=vault group=vault
+      notify: restart vault
+    - name: copy the vault tls key
+      copy: src=deps/vault.key dest=/etc/vault.d/vault.key mode=400 owner=vault group=vault
+      notify: restart vault
+    - name: ensure vault storage dir
+      file: path=/mnt/vault/data state=directory mode=755 owner=vault group=vault
+    - name: enable and start vault
+      service: name=vault state=started enabled=yes
+
+    - name: jq
+      yum: name=jq state=present
+    - name: copy the root ca we signed vault's cert in the trust dir
+      copy: src=deps/notanima-root.cer dest=/etc/pki/tls/certs/notanima-root.cer mode=644 owner=root group=root
+      notify: update ca trust
+    - name: init the vault AND SAVE THE GIVEN TOKENS, NOT RECOMMENDED TO STORE ROOT TOKEN! but in either case, BE SURE TO REVOKE IT AT SOME POINT. ALSO, THRESHOLD/SHARES 1/1 IS A MAD BAD IDEA. Also, it's possible to have keys and root token encrypted with gpg with the -pgp-keys and -root-token-pgp-key options, skipped here because automating exporting/importing keys in the vm is annoying
+      command: vault init -key-threshold=1 -key-shares=1
+      register: vault_init
+      ignore_errors: True # to handle the fact that we init only once
+    - name: save the init output for further tinkering on the box TODO REMOVEME AND GENERATE AUTH STUFF INSTEAD
+      shell: echo "{{ vault_init.stdout }}" > /home/vagrant/vault-init.out
+      when: vault_init | succeeded
+    - name: unseal (DO NOT TRY THIS ~AT HOME~ ahem, IN PROD)
+      command: vault unseal {{ vault_init.stdout_lines[0].split(' ')[-1] }}
+      when: vault_init | succeeded
+    - name: authenticate on vault
+      command: vault auth {{ vault_init.stdout_lines[1].split(' ')[-1] }}
+      when: vault_init | succeeded
+    - name: mount pki backend for root ca
+      command: vault mount -path=rootca pki
+      when: vault_init | succeeded
+    - name: generate root ca
+      command: vault write rootca/root/generate/internal common_name=nomad-playground.notanima.tech
+      when: vault_init | succeeded
+    - name: mount pki backend for intermediate ca
+      command: vault mount -path=infraca pki
+      when: vault_init | succeeded
+    - name: generate csr
+      shell: vault write -format json infraca/intermediate/generate/internal common_name=infra.nomad-playground.notanima.tech | jq -r .data.csr
+      register: infra_csr
+      when: vault_init | succeeded
+    - name: sign csr
+      shell: vault write -format json rootca/root/sign-intermediate csr="{{ infra_csr.stdout }}" format=pem_bundle | jq -r .data.certificate
+      register: infra_crt
+      when: vault_init | succeeded
+    - name: install intermediate signed cert
+      command: vault write infraca/intermediate/set-signed certificate="{{ infra_crt.stdout }}"
+      when: vault_init | succeeded
+    - name: role for ansible to provision certs (lease will be used to have CT renew the cert)
+      command: vault write infraca/roles/any-infra allowed_domains=infra.nomad-playground.notanima.tech allow_subdomains=true max_ttl=72h generate_lease=true
+      when: vault_init | succeeded
+    - name: generate a cert! TODO this demonstrate feasability, real next step is to setup auth and policies and have ct generate certs for mongo and rabbit
+      shell: vault write -format json infraca/issue/any-infra common_name=todo.infra.nomad-playground.notanima.tech ttl="2h" | tee /home/vagrant/todo.crt.json
+      #TODO: roles, acls, auths for ansible and/or cert-renewal consultemplates, revoke the root token, provision an "admin" account with root powers
+      #TODO: set vault02 to be the ha secondary not an individually configured one, see if a consul as ha backend makes sense or it generate bootstrap-cert nightmare
+
+  handlers:
+    - name: reload units
+      command: systemctl daemon-reload
+    - name: restart vault
+      service: name=vault state=restarted
+    - name: update ca trust
+      command: update-ca-trust
+
+- hosts: infrapps
+  become: yes
+  tasks:
     - name: copy the consul binary
       copy: src=deps/consul dest=/usr/bin/consul mode=755 owner=root group=root
     - name: copy the consul systemd unit
@@ -25,13 +121,6 @@
 
     - name: copy the consul-template binary
       copy: src=deps/consul-template dest=/usr/bin/consul-template mode=755 owner=root group=root
-
-    - name: "build hosts file"
-      lineinfile: dest=/etc/hosts regexp='.*{{ item }}$' line="{{ hostvars[item].address }} {{ item }}" state=present
-      when: hostvars[item].address is defined
-      with_items: "{{ groups['all'] }}"
-    - name: sets hostname
-      command: hostnamectl set-hostname {{ ansible_host }}
 
   handlers:
     - name: reload units

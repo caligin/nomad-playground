@@ -1,0 +1,24 @@
+[Unit]
+Description=vault.service
+After=network.target
+Documentation=https://www.vaultproject.io/docs/
+
+[Service]
+User=vault
+Group=vault
+Environment="OPTIONS=server -config /etc/vault.d/"
+ExecStartPre=/usr/sbin/setcap cap_ipc_lock=+ep /usr/bin/vault
+ExecStart=/usr/bin/vault $OPTIONS
+PermissionsStartOnly=true
+PIDFile=/var/run/vault.pid
+LimitFSIZE=infinity
+LimitCPU=infinity
+LimitAS=infinity
+LimitNOFILE=64000
+LimitNPROC=64000
+TasksMax=infinity
+TasksAccounting=false
+
+[Install]
+WantedBy=multi-user.target
+
