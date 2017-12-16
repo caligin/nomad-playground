@@ -288,6 +288,20 @@
       copy: src=app.ini dest=/etc/gitea/app.ini mode=644 owner=root group=root
     - name: enable and start gitea
       service: name=gitea state=started enabled=yes
+    - name: create user
+      command: |
+        /var/lib/gitea/gitea admin create-user
+          --name {{ item }}
+          --password {{ item }}
+          --email {{ item }}@{{ item }}.com
+          --config /etc/gitea/app.ini
+      become_user: gitea
+      register: command_result
+      failed_when:
+        - command_result.rc == 1
+        - not command_result.stderr | search("user already exists")
+      with_items:
+        - demo
 
     - name: copy the nomad binary
       copy: src=deps/nomad dest=/usr/bin/nomad mode=755 owner=root group=root
